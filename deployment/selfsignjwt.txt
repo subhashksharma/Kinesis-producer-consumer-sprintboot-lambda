@@ -1,0 +1,125 @@
+
+# Generate the self sign JWT using KMS Key
+
+aws kms create-key \
+  --key-usage SIGN_VERIFY \
+  --customer-master-key-spec RSA_2048 \
+  --description "Asymmetric key for signing JWTs"
+
+Key added in to AWS
+
+{
+    "KeyMetadata": {
+        "AWSAccountId": "9080xxxxx95011",
+        "KeyId": "47eaa029-a33a-4ae4-8328-eba25c72e0f4",
+        "Arn": "arn:aws:kms:ap-south-1:9080xxxxx95011:key/47eaa029-a33a-4ae4-8328-eba25c72e0f4",
+        "CreationDate": "2025-04-06T15:46:35.610000-04:00",
+        "Enabled": true,
+        "Description": "Asymmetric key for signing JWTs",
+        "KeyUsage": "SIGN_VERIFY",
+        "KeyState": "Enabled",
+        "Origin": "AWS_KMS",
+        "KeyManager": "CUSTOMER",
+        "CustomerMasterKeySpec": "RSA_2048",
+        "KeySpec": "RSA_2048",
+        "SigningAlgorithms": [
+            "RSASSA_PKCS1_V1_5_SHA_256",
+            "RSASSA_PKCS1_V1_5_SHA_384",
+            "RSASSA_PKCS1_V1_5_SHA_512",
+            "RSASSA_PSS_SHA_256",
+            "RSASSA_PSS_SHA_384",
+            "RSASSA_PSS_SHA_512"
+        ],
+        "MultiRegion": false
+    }
+}
+
+
+# Get the public Key  
+aws kms get-public-key --key-id 47eaa029-a33a-4ae4-8328-eba25c72e0f4
+
+{
+    "KeyId": "arn:aws:kms:ap-south-1:9080xxxxx95011:key/47eaa029-a33a-4ae4-8328-eba25c72e0f4",
+    "PublicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApXkrgolMPJbR6YP9O/r2IvJC6rdeItrC9fgo/aFoolwU1C/k30wgUwgD8BUC2rs6TecGcep6WfXQbSivobwP0ANurzvoBynPRcEfwYfketSJqUPL6pHS3Ljdjv95ijeyzUEjjJBTECmkE4+H4WJqxt0g8ahINq8oo8xatL+v6uRbSwMQXJb12AgMk2sof+FGYk/gRp7wsbOznSs2GKE5/S8eMQr6Dk9pdmx3xKmWUr/3QWQUTYxx0uyx/6at/AT6qG0xqRGwTR7gtS8ZUMJIzrIBMHdlRhHNxQsWrroyYisRFKwVYc41BW8yBLrx554LQRqXudAA8uMExWAZIgp2jQIDAQAB",
+    "CustomerMasterKeySpec": "RSA_2048",
+    "KeySpec": "RSA_2048",
+    "KeyUsage": "SIGN_VERIFY",
+    "SigningAlgorithms": [
+        "RSASSA_PKCS1_V1_5_SHA_256",
+        "RSASSA_PKCS1_V1_5_SHA_384",
+        "RSASSA_PKCS1_V1_5_SHA_512",
+        "RSASSA_PSS_SHA_256",
+        "RSASSA_PSS_SHA_384",
+        "RSASSA_PSS_SHA_512"
+    ]
+}
+
+
+Json Header 
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+
+Payload
+
+{
+  "sub": "test-user",
+  "iss": "my-lambda",
+  "exp": 1911744000
+}
+
+
+# Header
+echo -n '{"alg":"RS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '='
+
+# Payload
+echo -n '{"sub":"test-user","iss":"my-lambda","exp":1911744000}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '='
+Console out put
+
+Header = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9
+Payload = eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpc3MiOiJteS1sYW1iZGEiLCJleHAiOjE5MTE3NDQwMDB9
+
+Message = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpc3MiOiJteS1sYW1iZGEiLCJleHAiOjE5MTE3NDQwMDB9
+
+
+
+Create a Signature using AWS Commandline
+
+SIGNATURE=$(aws kms sign \
+  --key-id 47eaa029-a33a-4ae4-8328-eba25c72e0f4 \
+  --message-type RAW \
+  --signing-algorithm RSASSA_PKCS1_V1_5_SHA_256 \
+  --message "$(echo -n "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpc3MiOiJteS1sYW1iZGEiLCJleHAiOjE5MTE3NDQwMDB9" | base64)" \
+  --query Signature \
+  --output text)
+
+Output Signature = Cn0eB/Dc7MTW7tRadgzIegHluyGssATcvWqr+3j1WC/58I1ZNmZt/QUFaos1tu55PsS4NjHNX836ZKS4u3GZNMbI7vqci39vKM1LLghXvlpCD4ftPFqByZATB4+WtO6Xc9etegWbw4kozvlWrdJswY9vfV1PhSwrYCxc/ZjlUcDwH9RLxHMwyIYRsgkUXC/ysCUlZxjacsGfzeW8p/QiIYcLJdPG5rhq0JwS3I8yWVjjvuZbBEE4SSqum9s9WEFURBQ5j3CRMVT4P2nBV/RBwMOiaJADCKbQ06IaXCSIDN9xo6S/6x+dsK+dmlL43mFAzx0O9UwvEJLCEHizsImQ==
+
+
+## Convert this the make base64 URL in command line 
+SIGNATURE_B64URL=$(echo "Cn0eB/Dc7MTW7tRadgzIegHluyGssATcvWqr+3j1WC/58I1ZNmZt/QUFaos1tu55PsS4NjHNX836ZKS4u3GZNMbI7vqci39vKM1LLghXvlpCD4ftPFqByZATB4+WtO6Xc9etegWbw4kozvlWrdJswY9vfV1PhSwrYCxc/ZjlUcDwH9RLxHMwyIYRsgkUXC/ysCUlZxjacsGfzeW8p/QiIYcLJWPG5rhq0JwS3I8yWVjjvuZbBEE4SSqum9s9WEFURBQ5j3CRMVT4P2nBV/RBwMOiaJADCKbQ06IaXCSIDN9xo6S/6x+dsK+dmlL43mFAzx0O9UwvEJLCEHizsImQ==" | base64 --decode | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+
+
+
+Build JWT  = Header.Payload.Signature
+
+  eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpc3MiOiJteS1sYW1iZGEiLCJleHAiOjE5MTE3NDQwMDB9.Cn0eB_Dc7MTW7tRadgzIegHluyGssATcvWqr-3j1WC_58I1ZNmZt_QUFaos1tu55PsS4NjHNX836ZKS4u3GZNMbI7vqci39vKM1LLghXvlpCD4ftPFqByZATB4-WtO6Xc9etegWbw4kozvlWrdJswY9vfV1PhSwrYCxc_ZjlUDwH9RLxHMwyIYRsgkUXC_ysCUlZxjacsGfzeW8p_QiIYcLJdWPG5rhq0JwS3I8yWVjjvuZbBEE4SSqum9s9WEFURBQ5j3CRMVT4P2nBV_RBwMOiaJADCKbQ06IaXCSIDN9xo6S_6x-dsK-dmlL43mFAzx0O9UwvEJLCEHizsIm
+
+
+  This builded JWT can be passed to third party and then they can parse this with public key.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
